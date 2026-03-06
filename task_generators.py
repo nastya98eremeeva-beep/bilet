@@ -52,18 +52,18 @@ def gen_task1(effective_variant: int) -> tuple:
         lines = [
             "Задание 1.",
             f"Дано: {low_bin} < C < {high_bin}. Укажите номер (1–4) числа C в двоичной системе, удовлетворяющего неравенству:",
-            f"1) {bin(opts[0])[2:].zfill(8)}",
-            f"2) {bin(opts[1])[2:].zfill(8)}",
-            f"3) {bin(opts[2])[2:].zfill(8)}",
+            f"1) {bin(opts[0])[2:].zfill(8)};",
+            f"2) {bin(opts[1])[2:].zfill(8)};",
+            f"3) {bin(opts[2])[2:].zfill(8)};",
             f"4) {bin(opts[3])[2:].zfill(8)}.",
         ]
     else:
         lines = [
             "Задание 1.",
             f"Дано: {low_bin} < C < {high_bin}. Какое из чисел С, записанных в двоичной системе счисления, удовлетворяет неравенству?",
-            f"1) {bin(opts[0])[2:].zfill(8)}",
-            f"2) {bin(opts[1])[2:].zfill(8)}",
-            f"3) {bin(opts[2])[2:].zfill(8)}",
+            f"1) {bin(opts[0])[2:].zfill(8)};",
+            f"2) {bin(opts[1])[2:].zfill(8)};",
+            f"3) {bin(opts[2])[2:].zfill(8)};",
             f"4) {bin(opts[3])[2:].zfill(8)}.",
         ]
     return "\n\n".join(lines), str(ans_idx)
@@ -295,20 +295,20 @@ def gen_task8(effective_variant: int) -> tuple:
     else:
         correct_pos = 4
     opts_str = "; ".join(f"{i+1}) [{a}, {b}]" for i, (a, b) in enumerate(options))
+    _task8_intro = [
+        "Задание 8.",
+        f"На числовой прямой даны три отрезка: P = [{p[0]}, {p[1]}], Q = [{q[0]}, {q[1]}] и R = [{r[0]}, {r[1]}]. Выберите такой отрезок A, при котором формула",
+        "((x ∈ P) → (x ∈ Q)) ∧ ((x ∉ A) → (x ∈ R))",
+        "тождественно ложна:",
+        f"1) [{options[0][0]}, {options[0][1]}];",
+        f"2) [{options[1][0]}, {options[1][1]}];",
+        f"3) [{options[2][0]}, {options[2][1]}];",
+        f"4) [{options[3][0]}, {options[3][1]}].",
+    ]
     if _is_file2(effective_variant):
-        lines = [
-            "Задание 8.",
-            f"На числовой прямой даны три отрезка: P = [{p[0]}, {p[1]}], Q = [{q[0]}, {q[1]}] и R = [{r[0]}, {r[1]}]. Выберите такой отрезок A, что формула",
-            "((x ∈ P) → (x ∈ Q)) ∧ ((x ∉ A) → (x ∈ R))",
-            f"тождественно ложна. Варианты: {opts_str}.",
-        ]
+        lines = _task8_intro
     else:
-        lines = [
-            "Задание 8.",
-            f"На числовой прямой даны три отрезка: P = [{p[0]}, {p[1]}], Q = [{q[0]}, {q[1]}] и R = [{r[0]}, {r[1]}]. Выберите такой отрезок A, что формула",
-            "((x ∈ P) → (x ∈ Q)) ∧ ((x ∉ A) → (x ∈ R))",
-            f"тождественно ложна. Варианты: {opts_str}.",
-        ]
+        lines = _task8_intro
     return "\n\n".join(lines), str(correct_pos)
 
 

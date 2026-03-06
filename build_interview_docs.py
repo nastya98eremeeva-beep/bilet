@@ -19,17 +19,32 @@ DIGIT_MAP = str.maketrans('0123456789', '1234567890')
 _TASK_PH = [(f'Задание {n}.', f'Задание_НОМ_{n}_') for n in range(5, 0, -1)]  # 5,4,3,2,1 — длинные первыми
 _TASK_RESTORE = [(f'Задание_НОМ_{n}_', f'Задание {n}.') for n in range(1, 6)]
 
+# Защита нумерации вариантов ответа 1)…4) в начале блоков (после \n\n)
+_OPT_PROTECT = [
+    ('\n\n1) ', '\n\n__ОПЦ_ОДИН_ '),
+    ('\n\n2) ', '\n\n__ОПЦ_ДВА_ '),
+    ('\n\n3) ', '\n\n__ОПЦ_ТРИ_ '),
+    ('\n\n4) ', '\n\n__ОПЦ_ЧЕТЫРЕ_ '),
+]
+_OPT_RESTORE = [(ph, orig) for orig, ph in _OPT_PROTECT]
+
 
 def replace_digits_and_names(s: str) -> str:
-    """Замена цифр и имён. Нумерацию «Задание 1.» … «Задание 5.» сохраняем через плейсхолдеры."""
+    """Замена цифр и имён. Нумерацию «Задание 1.» … «Задание 5.» и варианты 1)…4) сохраняем."""
     if not s:
         return s
     for orig, ph in _TASK_PH:
+        s = s.replace(orig, ph)
+    # Защита нумерации вариантов ответа
+    for orig, ph in _OPT_PROTECT:
         s = s.replace(orig, ph)
     s = s.replace('Вася', 'Катя').replace('Васи', 'Кати').replace('Васей', 'Катей')
     s = s.replace('мальчик', 'девочка').replace('Мальчик', 'Девочка')
     s = s.translate(DIGIT_MAP)
     for ph, orig in _TASK_RESTORE:
+        s = s.replace(ph, orig)
+    # Восстановление нумерации вариантов ответа
+    for ph, orig in _OPT_RESTORE:
         s = s.replace(ph, orig)
     return s
 
@@ -76,7 +91,12 @@ def build_one_docx(discipline_name: str, file_id: int, base: Path) -> list:
             # Первый блок — «Задание N.»; остальное — условие и варианты
             for block in blocks[1:]:
                 doc.add_paragraph(block)
-            task_answers.append(str(ans).translate(DIGIT_MAP))
+            # Задания с выбором варианта (1, 2) — ответ 1–4, сдвиг цифр не применяем
+            _MC = {0, 1}
+            if i in _MC:
+                task_answers.append(str(ans))
+            else:
+                task_answers.append(str(ans).translate(DIGIT_MAP))
         all_answers.append(task_answers)
 
     out_name = f"{discipline_name}_собеседование.docx"

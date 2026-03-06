@@ -17,6 +17,16 @@ from copy import deepcopy
 # Перестановка цифр: каждая цифра заменяется на другую
 DIGIT_MAP = str.maketrans('0123456789', '1234567890')
 
+# Защита нумерации вариантов ответа 1)…4) в начале блоков (после \n\n)
+# Плейсхолдеры содержат только буквы — не затрагиваются DIGIT_MAP
+_OPT_PROTECT = [
+    ('\n\n1) ', '\n\n__ОПЦ_ОДИН_ '),
+    ('\n\n2) ', '\n\n__ОПЦ_ДВА_ '),
+    ('\n\n3) ', '\n\n__ОПЦ_ТРИ_ '),
+    ('\n\n4) ', '\n\n__ОПЦ_ЧЕТЫРЕ_ '),
+]
+_OPT_RESTORE = [(ph, orig) for orig, ph in _OPT_PROTECT]
+
 # Плейсхолдеры для нумерации заданий (без цифр), инструкций и вариантов
 TASK_PLACEHOLDERS = [
     ('Задание 10', 'Задание_ДЕСЯТЬ_'),
@@ -301,12 +311,19 @@ def compute_answers_for_file_mapped(doc: Document, num_tasks: int) -> list:
     return variant_answers
 
 def _replace_digits_and_names_std(s: str) -> str:
-    """Замена цифр и имён для чистых docx (без шапки)."""
+    """Замена цифр и имён для чистых docx (без шапки). Нумерацию 1)…4) в начале блоков сохраняем."""
     if not s:
         return s
+    # Защита нумерации вариантов ответа
+    for orig, ph in _OPT_PROTECT:
+        s = s.replace(orig, ph)
     s = s.replace('Вася', 'Катя').replace('Васи', 'Кати').replace('Васей', 'Катей')
     s = s.replace('мальчик', 'девочка').replace('Мальчик', 'Девочка')
-    return s.translate(DIGIT_MAP)
+    s = s.translate(DIGIT_MAP)
+    # Восстановление нумерации вариантов ответа
+    for ph, orig in _OPT_RESTORE:
+        s = s.replace(ph, orig)
+    return s
 
 
 def build_clean_standard_doc(base: Path, fname: str, file_id: int) -> tuple:
@@ -324,7 +341,12 @@ def build_clean_standard_doc(base: Path, fname: str, file_id: int) -> tuple:
         p = doc.add_paragraph()
         p.add_run(f"Вариант №{variant_num}").bold = True
         texts, answers = generate_all_for_variant(effective_variant)
-        answers_mapped = [str(a).translate(DIGIT_MAP) for a in answers]
+        # Задания с выбором варианта (1, 2, 8) — ответ 1–4, сдвиг цифр не применяем
+        _MC = {0, 1, 7}
+        answers_mapped = [
+            str(a) if i in _MC else str(a).translate(DIGIT_MAP)
+            for i, a in enumerate(answers)
+        ]
         all_answers.append(answers_mapped)
         for i, text in enumerate(texts):
             text_replaced = _replace_digits_and_names_std(text)
