@@ -12,6 +12,7 @@ import re
 import csv
 from pathlib import Path
 from docx import Document
+from docx.shared import Pt, Cm
 from copy import deepcopy
 
 # Перестановка цифр: каждая цифра заменяется на другую
@@ -334,12 +335,30 @@ def build_clean_standard_doc(base: Path, fname: str, file_id: int) -> tuple:
     """
     from task_generators import generate_all_for_variant
     doc = Document()
+
+    # Поля страницы
+    for section in doc.sections:
+        section.top_margin = Cm(2)
+        section.bottom_margin = Cm(2)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2)
+
     num_variants, num_tasks = 20, 10
     all_answers = []
     for variant_num in range(1, num_variants + 1):
         effective_variant = variant_num + file_id * 20
+
+        # Разрыв страницы перед каждым вариантом, кроме первого
+        if variant_num > 1:
+            doc.add_page_break()
+
+        # Заголовок варианта: жирный, 14pt
         p = doc.add_paragraph()
-        p.add_run(f"Вариант №{variant_num}").bold = True
+        p.paragraph_format.space_after = Pt(8)
+        run = p.add_run(f"Вариант №{variant_num}")
+        run.bold = True
+        run.font.size = Pt(14)
+
         texts, answers = generate_all_for_variant(effective_variant)
         # Задания с выбором варианта (1, 2, 8) — ответ 1–4, сдвиг цифр не применяем
         _MC = {0, 1, 7}
@@ -348,12 +367,26 @@ def build_clean_standard_doc(base: Path, fname: str, file_id: int) -> tuple:
             for i, a in enumerate(answers)
         ]
         all_answers.append(answers_mapped)
+
         for i, text in enumerate(texts):
             text_replaced = _replace_digits_and_names_std(text)
             blocks = [b.strip() for b in text_replaced.split("\n\n") if b.strip()]
-            doc.add_paragraph(f"№{i + 1}")
-            for block in blocks[1:]:  # первый блок — «Задание N.» пропускаем
-                doc.add_paragraph(block)
+
+            # Номер задания: жирный, 11pt
+            p_num = doc.add_paragraph()
+            p_num.paragraph_format.space_before = Pt(8)
+            p_num.paragraph_format.space_after = Pt(2)
+            r = p_num.add_run(f"№{i + 1}")
+            r.bold = True
+            r.font.size = Pt(11)
+
+            # Содержимое задания с отступом (пропускаем первый блок «Задание N.»)
+            for block in blocks[1:]:
+                p_block = doc.add_paragraph(block)
+                p_block.paragraph_format.left_indent = Cm(0.7)
+                p_block.paragraph_format.space_after = Pt(2)
+                p_block.paragraph_format.space_before = Pt(1)
+
     return doc, all_answers, num_variants, num_tasks
 
 

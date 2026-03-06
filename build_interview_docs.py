@@ -8,6 +8,7 @@
 
 from pathlib import Path
 from docx import Document
+from docx.shared import Pt, Cm
 
 from interview_questions import THEORY_QUESTIONS, THEORY_ANSWERS
 from task_generators import gen_task1, gen_task2, gen_task3, gen_task4, gen_task5
@@ -60,37 +61,82 @@ NUM_QUESTIONS = 5
 NUM_TASKS = 5
 
 
+def _add_variant_header(doc, text: str):
+    """Добавляет заголовок варианта: жирный, 14pt, с отступом снизу."""
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(6)
+    run = p.add_run(text)
+    run.bold = True
+    run.font.size = Pt(14)
+    return p
+
+
+def _add_section_label(doc, text: str):
+    """Добавляет подзаголовок раздела (курсив, жирный)."""
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(2)
+    run = p.add_run(text)
+    run.bold = True
+    run.italic = True
+    run.font.size = Pt(11)
+    return p
+
+
+def _add_task_block(doc, number: str, blocks: list):
+    """Добавляет номер задания и его содержимое с отступом."""
+    p_num = doc.add_paragraph()
+    p_num.paragraph_format.space_before = Pt(6)
+    p_num.paragraph_format.space_after = Pt(2)
+    r = p_num.add_run(number)
+    r.bold = True
+    r.font.size = Pt(11)
+    for block in blocks:
+        p = doc.add_paragraph(block)
+        p.paragraph_format.left_indent = Cm(0.7)
+        p.paragraph_format.space_after = Pt(1)
+        p.paragraph_format.space_before = Pt(1)
+
+
 def build_one_docx(discipline_name: str, file_id: int, base: Path) -> list:
     """
     Создаёт один docx: только варианты, без шапок.
     Возвращает список ответов по вариантам: [ [задание1, ..., задание5], ... ]
     """
     doc = Document()
-    # Не добавляем заголовок документа — сразу варианты
+
+    # Поля страницы
+    for section in doc.sections:
+        section.top_margin = Cm(2)
+        section.bottom_margin = Cm(2)
+        section.left_margin = Cm(2.5)
+        section.right_margin = Cm(2)
+
     all_answers = []
 
     for variant_num in range(1, NUM_VARIANTS + 1):
         effective_variant = variant_num + file_id * 20
 
-        # Заголовок варианта
-        p = doc.add_paragraph()
-        p.add_run(f"Вариант №{variant_num}").bold = True
+        # Разрыв страницы перед каждым вариантом, кроме первого
+        if variant_num > 1:
+            doc.add_page_break()
 
-        # №1–№5: вопросы (без слова «Вопрос»)
+        _add_variant_header(doc, f"Вариант №{variant_num}")
+
+        # №1–№5: теоретические вопросы
+        _add_section_label(doc, "Теоретические вопросы:")
         for i in range(NUM_QUESTIONS):
-            doc.add_paragraph(f"№{i + 1}", style='Normal')
-            doc.add_paragraph(THEORY_QUESTIONS[i])
+            _add_task_block(doc, f"№{i + 1}", [THEORY_QUESTIONS[i]])
 
-        # №6–№10: задания (без слова «Задание», только номер и текст)
+        # №6–№10: задания
+        _add_section_label(doc, "Задания:")
         task_answers = []
         for i, gen in enumerate(TASK_GENS):
             text, ans = gen(effective_variant)
             text_replaced = replace_digits_and_names(text)
             blocks = [b.strip() for b in text_replaced.split("\n\n") if b.strip()]
-            doc.add_paragraph(f"№{NUM_QUESTIONS + i + 1}")  # №6, №7, … №10
-            # Первый блок — «Задание N.»; остальное — условие и варианты
-            for block in blocks[1:]:
-                doc.add_paragraph(block)
+            _add_task_block(doc, f"№{NUM_QUESTIONS + i + 1}", blocks[1:])
             # Задания с выбором варианта (1, 2) — ответ 1–4, сдвиг цифр не применяем
             _MC = {0, 1}
             if i in _MC:
@@ -100,16 +146,15 @@ def build_one_docx(discipline_name: str, file_id: int, base: Path) -> list:
         all_answers.append(task_answers)
 
     out_name = f"{discipline_name}_собеседование.docx"
-    out_path = base / out_name
-    doc.save(out_path)
+    doc.save(base / out_name)
     return all_answers
 
 
 def write_answer_file(base: Path, discipline_answers: dict):
-    """Пишет файл с ответами: по каждому файлу — варианты, по каждому варианту — эталоны на вопросы и ответы на задания."""
+    """Пишет файл с ответами: теоретические вопросы один раз + компактная таблица ответов."""
     lines = []
     lines.append("ОТВЕТЫ ДЛЯ УСТНОГО СОБЕСЕДОВАНИЯ")
-    lines.append("Структура: 5 вопросов с развёрнутым ответом + 5 заданий. Ниже — эталоны ответов на вопросы и ответы на задания.")
+    lines.append(f"Структура: {NUM_QUESTIONS} теоретических вопросов + {NUM_TASKS} заданий")
     lines.append("")
 
     for discipline_name, file_id in DISCIPLINES:
@@ -117,21 +162,38 @@ def write_answer_file(base: Path, discipline_answers: dict):
         if key not in discipline_answers:
             continue
         task_answers_per_variant = discipline_answers[key]
-        lines.append("=" * 70)
-        lines.append(f"Дисциплина: {discipline_name}")
-        lines.append(f"Файл билетов: {discipline_name}_собеседование.docx")
-        lines.append("=" * 70)
 
-        for v in range(NUM_VARIANTS):
+        lines.append("=" * 70)
+        lines.append(f"  Дисциплина: {discipline_name}")
+        lines.append(f"  Файл билетов: {discipline_name}_собеседование.docx")
+        lines.append("=" * 70)
+        lines.append("")
+
+        # Теоретические вопросы — ОДИН РАЗ для всех вариантов
+        lines.append("─" * 70)
+        lines.append("  ЭТАЛОНЫ ОТВЕТОВ НА ТЕОРЕТИЧЕСКИЕ ВОПРОСЫ")
+        lines.append("  (вопросы одинаковы во всех вариантах)")
+        lines.append("─" * 70)
+        for i in range(NUM_QUESTIONS):
             lines.append("")
-            lines.append(f"--- Вариант {v + 1} ---")
-            lines.append("Вопросы (эталон ответа для проверяющего):")
-            for i in range(NUM_QUESTIONS):
-                lines.append(f"  Вопрос {i + 1}. {THEORY_ANSWERS[i]}")
-            lines.append("Задания (краткий ответ):")
-            task_ans = task_answers_per_variant[v]
-            for i in range(NUM_TASKS):
-                lines.append(f"  Задание {i + 1}. {task_ans[i]}")
+            lines.append(f"  Вопрос {i + 1}.  {THEORY_QUESTIONS[i]}")
+            lines.append(f"  Ответ:    {THEORY_ANSWERS[i]}")
+        lines.append("")
+
+        # Компактная таблица ответов на задания
+        lines.append("─" * 70)
+        lines.append("  ОТВЕТЫ НА ЗАДАНИЯ (краткие)")
+        lines.append("─" * 70)
+        col = 10
+        header = f"  {'Вариант':^8}" + "".join(f"{'Зад.' + str(i + 1):^{col}}" for i in range(NUM_TASKS))
+        lines.append(header)
+        lines.append("  " + "─" * (8 + col * NUM_TASKS))
+        for v in range(NUM_VARIANTS):
+            ans = task_answers_per_variant[v]
+            row = f"  {v + 1:^8}" + "".join(
+                f"{(ans[i] if i < len(ans) else '—'):^{col}}" for i in range(NUM_TASKS)
+            )
+            lines.append(row)
         lines.append("")
 
     txt_path = base / "Ответы_собеседование.txt"
